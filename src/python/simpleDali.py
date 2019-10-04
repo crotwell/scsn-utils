@@ -127,7 +127,7 @@ class DataLink(ABC):
         await self.send(header, None)
 
     async def reconnect(self):
-        self.close()
+        await self.close()
         self.createDaliConnection()
 
 class SocketDataLink(DataLink):
@@ -174,7 +174,7 @@ class SocketDataLink(DataLink):
                 hSize = pre[2]
             else:
                 if self.verbose: print("did not receive DL from read pre {:d}{:d}{:d}".format(pre[0],pre[1],pre[2]))
-                self.close()
+                await self.close()
                 raise Exception("did not receive DL from read pre")
             h = await self.reader.readexactly(hSize)
             header = h.decode("utf-8")
@@ -278,7 +278,7 @@ class WebSocketDataLink(DataLink):
                 hSize = response[2]
             else:
                 if self.verbose: print("did not receive DL from read pre {:d}{:d}{:d}".format(response[0],response[1],response[2]))
-                self.close()
+                await self.close()
                 raise Exception("did not receive DL from read pre")
             h = response[3:hSize+3]
             header = h.decode("utf-8")
