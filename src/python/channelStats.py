@@ -6,6 +6,7 @@ import signal
 import sys
 import json
 import math
+import websockets
 from datetime import datetime, timedelta
 from array import array
 
@@ -38,38 +39,42 @@ def handleSignal(sigNum, stackFrame):
 signal.signal(signal.SIGINT, handleSignal)
 signal.signal(signal.SIGTERM, handleSignal)
 
-async def doTest(loop):
-    dali = simpleDali.SocketDataLink(host, port)                                # creates datalink through a regular socket
-    #dali = simpleDali.WebSocketDataLink(uri)                                   # creates datalink throguh a websocket (not working)
-    dali.verbose = True                                                         # "yes send me debug codes"
-    serverId = await dali.id(programname, username, processid, architecture)    # send the server your iD and wait for the server to respond with its iD
-    print("Resp: {}".format(serverId))                                          # print the server iD
-    serverInfo = await dali.info("STATUS")                                      # request a message from the server, specifically the server status
-    print("Info: {} ".format(serverInfo.message))                               # take the response from the server and print the server's status
-    #serverInfo = yield from dali.info("STREAMS")                               # if the data stream is active request the status and header information about the stream
-    #print("Info: {} ".format(serverInfo.message))                              # print the data stream information
-    r = await dali.match("XX.XB08.00.HN./MSEED")        ##                      # requests all data with MAXACC somewhere in the name
-    #print("match() Resonse {}".format(r))                                      # prints the match response, does not work normally as they are encoded files
+async def connection(loop):
+    try:
+        dali = simpleDali.WebSocketDataLink(uri)
+        await dali.parseResponse()
+    except Exception:
+        dali = simpleDali.SocketDataLink(host, port)
+    dali.verbose = True
+    serverId = await dali.id(programname, username, processid, architecture)
+    print("Resp: {}".format(serverId))
+    serverInfo = await dali.info("STATUS")
+    print("Info: {} ".format(serverInfo.message))
+    print("File directory?")
+    channelLoc = input()
+    if channelLoc == '0':
+        r = await dali.match("XX.XB08.00.HN./MSEED")
+    else:
+        r = await dali.match(channelLoc)
 
-    begintime = datetime.utcnow() - timedelta(seconds=2)                        # stores the start time of the program
-    r = await dali.positionAfter(begintime)                                     # asks for any information from the server stored after the start time of the program
-    if r.type.startswith("ERROR"):                                                                    # if the requested packet match returns an error do this
-        print("positionAfter() Resonse {}, ringserver might not know about these packets?".format(r))   #{print the error time, error message from server and "ringserver might not know about these packets?"}
+    begintime = datetime.utcnow() - timedelta(seconds=2)
+    r = await dali.positionAfter(begintime)
+    if r.type.startswith("ERROR"):
+        print("positionAfter() Resonse {}, ringserver might not know about these packets?".format(r))
     else:
         print("positionAfter() Resonse m={}".format(r.message))
     r = await dali.stream()
     sys.stdout.flush()
     while(keepGoing):
-        peakPacket = await dali.parseResponse()                                 #dali.parseResponse reads the packet's data string and interpertates it
-        if not peakPacket.type == "PACKET":                                     #if the data is not actually in a packet format and thus dali.parseResponse cannot read it, follow this
-            # might get an OK very first after stream
-            print("parseResponse not a PACKET {} ".format(peakPacket))          # print this data is not a packet and the name of the resquested packet
+        peakPacket = await dali.parseResponse()
+        if not peakPacket.type == "PACKET":
+            print("parseResponse not a PACKET {} ".format(peakPacket))
         else:
             peakInfo={}
             devationValues = []
-            squares = []                                                         #writes the "peakInfo" varible
-            peakInfo=simpleMiniseed.unpackMiniseedRecord(peakPacket.data).data
-            channelX = simpleMiniseed.unpackMiniseedHeader(peakPacket.data).channel                                                     #prints the raw peakpacket data
+            squares = []
+            peakInfo= simpleMiniseed.unpackMiniseedRecord(peakPacket.data).data
+            channelX = simpleMiniseed.unpackMiniseedHeader(peakPacket.data).channel
             timestamp = simpleMiniseed.unpackMiniseedRecord(peakPacket.data).starttime()
             average = sum(peakInfo) / len(peakInfo)
             for x in range(len(peakInfo)):
@@ -87,19 +92,14 @@ async def doTest(loop):
             print('average = {}'.format(average))
             print('timestamp = {}'.format(timestamp))
 
-            #print(channelX)
-            #print(peakInfo)
-            #print("{} acceleration is {:7.5f} at {}".format(peakInfo["station"],peakInfo["accel"],peakInfo["time"]))    #prints the formated data
-
             peakInfo={}
-        sys.stdout.flush()                                                      #flushes the data every loop
-
+        sys.stdout.flush()
     dali.close()
 
 
 loop = asyncio.get_event_loop()
 loop.set_debug(True)
-loop.run_until_complete(doTest(loop))
+loop.run_until_complete(connection(loop))
 loop.close()
 
 # doto:
