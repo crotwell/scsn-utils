@@ -40,13 +40,13 @@ def extractSteim1Samples(dataView, offset,  littleEndian, swapBytes):# Array<num
         elif (currNibble == 1):
             for n in range(4):
                 temp[currNum] = struct.unpack_from(dataView, offset+(i*4)+n)
-                currNum = currNum + 1
+                currNum++
             return temp
             #    break
         elif (currNibble == 2):
             for n in range(4):
                 temp[currNum] = struct.unpack_from(i16, dataView, offset+(i*4)+n)
-                currNum = currNum + 1
+                currNum++
             return temp
             #break
         elif (currNibble == 3):
@@ -170,15 +170,21 @@ def extractSteim2Samples(swapBytes, temp, offset): #Int32Array
             tempInt = struct.unpack_from(i32, temp, offset+(i*4)) #, swapBytes)
             dnib = (tempInt >> 30) & 0x03
             if dnib == 1:
-                temp[currNum + 1] = (tempInt << 2) >> 2
-            elif dnib == 2:
-                tempSamples[currNum + 1] = (tempInt << 2) >> 17  # d0
-                tempSamples[currNum + 2] = (tempInt << 17) >> 17 # d1
-            elif dnib == 3:
-                tempSamples[currNum++] = (tempInt << 2) >> 22  # d0
-                tempSamples[currNum++] = (tempInt << 12) >> 22 # d1
-                tempSamples[currNum++] = (tempInt << 22) >> 22 # d2
-                print('default')
+                tempSamples = byteStaging(2,1,30)
+            if dnib == 2:
+                tempSamples = byteStaging(2,2,15)
+            if dnib == 3:
+                tempSamples = byteStaging(2,3,10)
+            # if dnib == 1:
+            #     temp[currNum + 1] = (tempInt << 2) >> 2
+            # elif dnib == 2:
+            #     tempSamples[currNum + 1] = (tempInt << 2) >> 17  # d0
+            #     tempSamples[currNum + 2] = (tempInt << 17) >> 17 # d1
+            # elif dnib == 3:
+            #     tempSamples[currNum++] = (tempInt << 2) >> 22  # d0
+            #     tempSamples[currNum++] = (tempInt << 12) >> 22 # d1
+            #     tempSamples[currNum++] = (tempInt << 22) >> 22 # d2
+            #     print('default')
 
         elif currNibble == 3:
             tempInt = struct.unpack_from(i32, temp, offset+(i*4))# swapBytes)
@@ -187,39 +193,28 @@ def extractSteim2Samples(swapBytes, temp, offset): #Int32Array
             bitSize = 0    # bit size
             headerSize = 0 # number of header/unused bits at top
             if dnib == 0:
-                headerSize = 2
-                diffCount = 5
-                bitSize = 6
+                tempSamples = byteStaging(2,5,6)
             elif dnib == 1:
-                headerSize = 2
-                diffCount = 6
-                bitSize = 5
+                tempSamples = byteStaging(2,6,5)
             elif dnib == 2:
-                headerSize = 4
-                diffCount = 7
-                bitSize = 4
+                tempSamples = byteStaging(4,7,4)
             else:
                 print('Default')
-            for i in range(diffCount - 1):
-                if i == 0:
-                    shiftForward = headerSize
-                    shiftBack = headerSize + bitSize
-                else:
-                    shiftForward = headerSize + (1+i)*bitSize
-                    shiftBack = shiftForward + bitSize
-                tempSamples[currNum+i] = (tempInt << (headerSize+(1+i)*bitSize) >> (shiftForward + shiftBack)
 
-        if (diffCount > 0):
-            for d in range(diffCount):   # for-loop formulation
-                tempSamples[currNum + 1] = ( tempInt << (headerSize+(d*bitSize)) ) >> (((diffCount-1)*bitSize) + headerSize)
-
-
-
-    #samples = tempInt
+    if (diffCount > 0):
+        for d in range(diffCount):   # for-loop formulation
+            tempSamples[currNum + 1] = ( tempInt << (headerSize+(d*bitSize)) ) >> (((diffCount-1)*bitSize) + headerSize)
     return tempSamples[0:currNum]
 
-
-
-# turn the array stuff into a list or array of some sort, just you know, in like python language
-# either A: make a array and fill it with however many zeros and the code "should" replace them
-# B: make the whole thing a list and fill it with the information and then later turn it into an array
+def byteStaging(headerSize, diffCount, bitSize):
+    byteSamples = []
+    for i in range(diffCount - 1):
+        Int = tempInt
+        if i == 0:
+            shiftForward = headerSize
+            shiftBack = headerSize + bitSize
+        else:
+            shiftForward = headerSize + (1+i)*bitSize
+            shiftBack = shiftForward + bitSize
+        byteSamples[currNum+i] = (tempInt << (headerSize+(1+i)*bitSize) >> (shiftForward + shiftBack)
+    return byteSamples
